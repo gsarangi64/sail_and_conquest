@@ -1,0 +1,58 @@
+body {
+    font-family: Arial;
+    background: #e6f0ff;
+    text-align: center;
+}
+
+.board {
+    display: grid;
+    grid-template-columns: repeat(15, 40px);
+    grid-template-rows: repeat(15, 40px);
+    gap: 1px;
+    justify-content: center;
+    margin: 20px auto;
+}
+
+.tile {
+    width: 40px;
+    height: 40px;
+    background: #b7d3ff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    border: 1px solid #88aaff;
+    user-select: none;
+    position: relative;
+    cursor: pointer;
+}
+
+.island {
+    background: #4cff4c;
+}
+
+.whirlpool {
+    background: #0044cc;
+    color: white;
+}
+
+.gold {
+    color: gold;
+    font-size: 20px;
+}
+
+.player {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 13px;
+    font-weight: bold;
+    background: rgba(255,255,255,0.7);
+    padding: 2px 4px;
+    border-radius: 4px;
+}
+
+
+.p1 { color: red;}
+.p2 { color: purple;}
