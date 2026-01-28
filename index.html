@@ -29,6 +29,8 @@
       font-weight: bold;
       border: 1px solid #88aaff;
       user-select: none;
+      position: relative;
+      cursor: pointer;
     }
 
     .island {
@@ -44,6 +46,22 @@
       color: gold;
       font-size: 20px;
     }
+
+    .player {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 13px;
+      font-weight: bold;
+      background: rgba(255,255,255,0.7);
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
+
+
+    .p1 { color: red;}
+    .p2 { color: purple;}
   </style>
 </head>
 
@@ -51,9 +69,20 @@
 
 <h1>Sail & Conquest</h1>
 
-<button onclick="generateBoard()">🔀 Randomize Board</button>
+<button onclick="rollDice()">🎲 Roll Dice</button>
+
+<p id="turnDisplay">Player 1's turn</p>
+
+<p>
+  P1 Gold: <span id="g1">0</span> |
+  P2 Gold: <span id="g2">0</span>
+</p>
 
 <div class="board" id="board"></div>
+
+<footer>
+  © Gaurav Sarangi 2026
+</footer>
 
 <script>
 const SIZE = 15;
@@ -69,14 +98,17 @@ const ISLANDS = [
 const WHIRLPOOLS = 8;
 const GOLD_COUNT = 15;
 
-function shuffle(arr) {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-}
+let tiles = [];
+let players = [];
+let currentPlayer = 0;
 
-function distance(a, b) {
+let diceRoll = 0;
+let awaitingMove = false;
+
+// ---------------------
+// Utility
+// ---------------------
+function manhattan(a, b) {
   const ax = a % SIZE;
   const ay = Math.floor(a / SIZE);
   const bx = b % SIZE;
@@ -84,12 +116,21 @@ function distance(a, b) {
   return Math.abs(ax - bx) + Math.abs(ay - by);
 }
 
-function placeWithSpacing(count, minDist, blocked) {
-  const placed = [];
+function protectedZone(index, zones, radius) {
+  for (let z of zones) {
+    if (manhattan(index, z) <= radius) return true;
+  }
+  return false;
+}
 
+// ---------------------
+// Placement engine
+// ---------------------
+function placeObjects(count, minDist, blocked, protectedZones) {
+  const placed = [];
   let attempts = 0;
 
-  while (placed.length < count && attempts < 5000) {
+  while (placed.length < count && attempts < 8000) {
     const pos = Math.floor(Math.random() * SIZE * SIZE);
 
     if (blocked.has(pos)) {
@@ -97,9 +138,14 @@ function placeWithSpacing(count, minDist, blocked) {
       continue;
     }
 
+    if (protectedZone(pos, protectedZones, 2)) {
+      attempts++;
+      continue;
+    }
+
     let ok = true;
     for (let p of placed) {
-      if (distance(p, pos) < minDist) {
+      if (manhattan(p, pos) < minDist) {
         ok = false;
         break;
       }
@@ -116,50 +162,162 @@ function placeWithSpacing(count, minDist, blocked) {
   return placed;
 }
 
+// ---------------------
+// Board Generation
+// ---------------------
 function generateBoard() {
+  tiles = Array(SIZE * SIZE).fill("water");
+
+  const topMid = Math.floor(SIZE / 2);
+  const bottomMid = (SIZE - 1) * SIZE + Math.floor(SIZE / 2);
+
+  const protectedZones = [topMid, bottomMid];
+  const blocked = new Set(protectedZones);
+
+  // Islands — medium spacing
+  const islandPos = placeObjects(
+    ISLANDS.length,
+    3,
+    blocked,
+    protectedZones
+  );
+
+  islandPos.forEach((p, i) => tiles[p] = ISLANDS[i]);
+
+  // Whirlpools — large spacing (walls)
+  const whirlPos = placeObjects(
+    WHIRLPOOLS,
+    4,
+    blocked,
+    protectedZones
+  );
+
+  whirlPos.forEach(p => tiles[p] = "@");
+
+  // Gold — lighter spacing
+  const goldPos = placeObjects(
+    GOLD_COUNT,
+    2,
+    blocked,
+    protectedZones
+  );
+
+  goldPos.forEach(p => tiles[p] = "gold");
+
+  players = [
+    { pos: topMid, gold: 0 },
+    { pos: bottomMid, gold: 0 }
+  ];
+
+  currentPlayer = 0;
+  diceRoll = 0;
+  awaitingMove = false;
+
+  updateUI();
+  draw();
+}
+
+// ---------------------
+// Game Logic
+// ---------------------
+function rollDice() {
+  if (awaitingMove) return;
+
+  diceRoll = Math.floor(Math.random() * 6) + 1;
+  awaitingMove = true;
+
+  document.getElementById("turnDisplay").textContent =
+    `Player ${currentPlayer + 1} rolled ${diceRoll}. Choose destination.`;
+
+  draw();
+}
+
+function tryMove(dest) {
+  if (!awaitingMove) return;
+
+  const start = players[currentPlayer].pos;
+
+  const sx = start % SIZE;
+  const sy = Math.floor(start / SIZE);
+  const dx = dest % SIZE;
+  const dy = Math.floor(dest / SIZE);
+
+  if (!(sx === dx || sy === dy)) return;
+
+  const dist = Math.abs(sx - dx) + Math.abs(sy - dy);
+  if (dist !== diceRoll) return;
+
+  const stepX = Math.sign(dx - sx);
+  const stepY = Math.sign(dy - sy);
+
+  let x = sx;
+  let y = sy;
+
+  for (let i = 1; i <= dist; i++) {
+    x += stepX;
+    y += stepY;
+    const idx = y * SIZE + x;
+
+    if (tiles[idx] === "@") return;
+  }
+
+  if (typeof tiles[dest] === "number") return;
+
+  if (tiles[dest] === "gold") {
+    players[currentPlayer].gold++;
+    tiles[dest] = "water";
+  }
+
+  players[currentPlayer].pos = dest;
+
+  awaitingMove = false;
+  diceRoll = 0;
+  currentPlayer = 1 - currentPlayer;
+
+  updateUI();
+  draw();
+}
+
+// ---------------------
+function updateUI() {
+  document.getElementById("turnDisplay").textContent =
+    awaitingMove
+      ? `Player ${currentPlayer + 1}: select square`
+      : `Player ${currentPlayer + 1}'s turn`;
+
+  document.getElementById("g1").textContent = players[0].gold;
+  document.getElementById("g2").textContent = players[1].gold;
+}
+
+function draw() {
   const board = document.getElementById("board");
   board.innerHTML = "";
 
-  const tiles = Array(SIZE * SIZE).fill("water");
-  const blocked = new Set();
-
-  // ---- ISLANDS ----
-  const islandPositions = placeWithSpacing(ISLANDS.length, 3, blocked);
-  shuffle(ISLANDS);
-
-  islandPositions.forEach((pos, i) => {
-    tiles[pos] = ISLANDS[i];
-  });
-
-  // ---- WHIRLPOOLS ----
-  const whirlPositions = placeWithSpacing(WHIRLPOOLS, 3, blocked);
-  whirlPositions.forEach(pos => {
-    tiles[pos] = "@";
-  });
-
-  // ---- GOLD ----
-  const goldPositions = placeWithSpacing(GOLD_COUNT, 2, blocked);
-  goldPositions.forEach(pos => {
-    tiles[pos] = "gold";
-  });
-
-  // ---- DRAW ----
-  tiles.forEach(t => {
+  tiles.forEach((t, i) => {
     const div = document.createElement("div");
     div.classList.add("tile");
 
     if (typeof t === "number") {
       div.classList.add("island");
       div.textContent = t;
-    }
-    else if (t === "@") {
+    } else if (t === "@") {
       div.classList.add("whirlpool");
       div.textContent = "@";
-    }
-    else if (t === "gold") {
+    } else if (t === "gold") {
       div.classList.add("gold");
       div.textContent = "●";
     }
+
+    div.onclick = () => tryMove(i);
+
+    players.forEach((p, idx) => {
+      if (p.pos === i) {
+        const span = document.createElement("span");
+        span.classList.add("player", idx === 0 ? "p1" : "p2");
+        span.textContent = idx === 0 ? "P1" : "P2";
+        div.appendChild(span);
+      }
+    });
 
     board.appendChild(div);
   });
@@ -169,7 +327,4 @@ generateBoard();
 </script>
 
 </body>
-<footer>
-            © Gaurav Sarangi 2026
-        </footer>
 </html>
