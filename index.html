@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Sail & Conquest – Prototype</title>
+
+  <style>
+    body {
+      font-family: Arial;
+      background: #e6f0ff;
+      text-align: center;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(15, 40px);
+      grid-template-rows: repeat(15, 40px);
+      gap: 1px;
+      justify-content: center;
+      margin: 20px auto;
+    }
+
+    .tile {
+      width: 40px;
+      height: 40px;
+      background: #b7d3ff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      border: 1px solid #88aaff;
+      user-select: none;
+    }
+
+    .island {
+      background: #4cff4c;
+    }
+
+    .whirlpool {
+      background: #0044cc;
+      color: white;
+    }
+
+    .gold {
+      color: gold;
+      font-size: 20px;
+    }
+  </style>
+</head>
+
+<body>
+
+<h1>Sail & Conquest</h1>
+
+<button onclick="generateBoard()">🔀 Randomize Board</button>
+
+<div class="board" id="board"></div>
+
+<script>
+const SIZE = 15;
+
+const ISLANDS = [
+  12,12,
+  10,10,10,
+  8,8,8,8,
+  6,6,6,6,6,
+  4,4,4,4,4,4
+];
+
+const WHIRLPOOLS = 8;
+const GOLD_COUNT = 15;
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+}
+
+function distance(a, b) {
+  const ax = a % SIZE;
+  const ay = Math.floor(a / SIZE);
+  const bx = b % SIZE;
+  const by = Math.floor(b / SIZE);
+  return Math.abs(ax - bx) + Math.abs(ay - by);
+}
+
+function placeWithSpacing(count, minDist, blocked) {
+  const placed = [];
+
+  let attempts = 0;
+
+  while (placed.length < count && attempts < 5000) {
+    const pos = Math.floor(Math.random() * SIZE * SIZE);
+
+    if (blocked.has(pos)) {
+      attempts++;
+      continue;
+    }
+
+    let ok = true;
+    for (let p of placed) {
+      if (distance(p, pos) < minDist) {
+        ok = false;
+        break;
+      }
+    }
+
+    if (ok) {
+      placed.push(pos);
+      blocked.add(pos);
+    }
+
+    attempts++;
+  }
+
+  return placed;
+}
+
+function generateBoard() {
+  const board = document.getElementById("board");
+  board.innerHTML = "";
+
+  const tiles = Array(SIZE * SIZE).fill("water");
+  const blocked = new Set();
+
+  // ---- ISLANDS ----
+  const islandPositions = placeWithSpacing(ISLANDS.length, 3, blocked);
+  shuffle(ISLANDS);
+
+  islandPositions.forEach((pos, i) => {
+    tiles[pos] = ISLANDS[i];
+  });
+
+  // ---- WHIRLPOOLS ----
+  const whirlPositions = placeWithSpacing(WHIRLPOOLS, 3, blocked);
+  whirlPositions.forEach(pos => {
+    tiles[pos] = "@";
+  });
+
+  // ---- GOLD ----
+  const goldPositions = placeWithSpacing(GOLD_COUNT, 2, blocked);
+  goldPositions.forEach(pos => {
+    tiles[pos] = "gold";
+  });
+
+  // ---- DRAW ----
+  tiles.forEach(t => {
+    const div = document.createElement("div");
+    div.classList.add("tile");
+
+    if (typeof t === "number") {
+      div.classList.add("island");
+      div.textContent = t;
+    }
+    else if (t === "@") {
+      div.classList.add("whirlpool");
+      div.textContent = "@";
+    }
+    else if (t === "gold") {
+      div.classList.add("gold");
+      div.textContent = "●";
+    }
+
+    board.appendChild(div);
+  });
+}
+
+generateBoard();
+</script>
+
+</body>
+<footer>
+            © Gaurav Sarangi 2026
+        </footer>
+</html>
